@@ -50,7 +50,6 @@ module Decoder(
         mem_to_reg = 0;
         mem_write  = 0;
         alu_src_b  = 0;
-        // NEW: alu_src_a defaults to rd1 for all existing instructions
         alu_src_a  = 2'b00;
         reg_write  = 0;
         imm_src    = 3'b000;
@@ -128,16 +127,16 @@ module Decoder(
 
             7'b0110111: begin // U-type (lui)
                 reg_write  = 1'b1;
-                alu_src_a  = 2'b01;  // force src_a = 0 so result = 0 + ext_imm
+                alu_src_a  = 2'b01;
                 alu_src_b  = 1'b1;
                 imm_src    = 3'b011; // U-type: Extend produces {imm[31:12], 12'b0}
-                alu_control= 4'b0000; // ADD
+                alu_control= 4'b0000;
             end
 
             // result = PC + {imm[31:12], 12'b0}, written to rd.
             7'b0010111: begin // U-type (auipc)
                 reg_write  = 1'b1;
-                alu_src_a  = 2'b10;  // src_a = PC (current program counter)
+                alu_src_a  = 2'b10;
                 alu_src_b  = 1'b1;
                 imm_src    = 3'b011; // U-type: Extend produces {imm[31:12], 12'b0}
                 alu_control= 4'b0000; // ADD: PC + ext_imm

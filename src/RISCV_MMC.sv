@@ -46,26 +46,17 @@ module RISCV_MMC(
     logic mem_to_reg, alu_src_b, reg_write;
     logic [2:0] imm_src;
     logic [3:0] alu_control;
-    // NEW: alu_src_a selects what feeds the ALU's first input (tutorial ALUSrcA signal).
-    // 2'b00 = rd1 (default), 2'b01 = zero (LUI), 2'b10 = PC (auipc)
     logic [1:0] alu_src_a;
 
     // Data path signals
     logic [31:0] rd1, rd2, ext_imm, src_b, write_data;
     logic [31:0] pc_next, pc_current;
     logic [2:0]  alu_flags;
-    // pc_src is 2 bits: 00=PC+4, 01=PC+imm (branch/jal), 11=rs1+imm (jalr)
     logic [1:0]  pc_src;
 
     // pc_plus4 carries the JAL/JALR return address (PC+4) for writeback into rd
     logic [31:0] pc_plus4;
-
-    // NEW: src_a is the ALUSrcA MUX output - what actually enters the ALU's A port.
-    // Keeping it separate from rd1 means the register file output is never corrupted.
     logic [31:0] src_a;
-
-    // Intermediate wire for JALR target - named so Vivado can slice it (cannot slice
-    // an expression directly, e.g. (rd1+ext_imm)[31:1] is not legal in Vivado).
     logic [31:0] jalr_target;
 
 
@@ -84,7 +75,6 @@ module RISCV_MMC(
         .mem_to_reg(mem_to_reg),
         .mem_write(mem_write),     // Connects directly to the output port
         .alu_control(alu_control),
-        // NEW: alu_src_a connected from Decoder to the ALUSrcA MUX below
         .alu_src_a(alu_src_a),
         .alu_src_b(alu_src_b),
         .imm_src(imm_src),
@@ -94,8 +84,6 @@ module RISCV_MMC(
 
 	// Instantiate your ALU here
 	    ALU alu_inst (
-        // NEW: src_a (MUX output) replaces the old direct rd1 connection.
-        // This allows LUI (src_a=0) and auipc (src_a=PC) to feed the ALU correctly.
         .src_a(src_a),
         .src_b(src_b),   // The MUX output
         .control(alu_control),
