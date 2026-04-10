@@ -146,7 +146,7 @@ module RISCV_MMC(
     assign pc_plus4 = pc_current + 4;
 
     // Result/Write-back Mux (2-way + JAL link)
-    // JALR link writeback (pcs==2'b11) is not implemented here - handled by friend
+    // JALR link writeback to be implemented here
     assign write_data = (mem_to_reg)     ? mem_read_data :
                         (pcs == 2'b10)   ? pc_plus4      :
                                            alu_result;
