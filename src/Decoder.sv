@@ -26,6 +26,12 @@ module Decoder(
     output reg mem_to_reg,        
     output reg mem_write,         
     output reg [3:0] alu_control, 
+    // NEW: alu_src_a selects the ALU's first operand (src_a).
+    // This is required by the tutorial Q2.b/Q2.c architecture (ALUSrcA signal).
+    // 2'b00 = rd1 (register file output, default for all R/I/S/B instructions)
+    // 2'b01 = 32'b0 (zero, for LUI: result = 0 + ext_imm = ext_imm)
+    // 2'b10 = PC    (for auipc: result = PC + ext_imm)
+    output reg [1:0] alu_src_a,
     output reg alu_src_b,         
     output reg [2:0] imm_src,     
     output reg reg_write          
@@ -40,13 +46,15 @@ module Decoder(
     assign funct7 = instr[31:25]; 
     
     always @(instr) begin
-        PCS = 2'b00;
+        PCS        = 2'b00;
         mem_to_reg = 0;
-        mem_write = 0;
-        alu_src_b = 0;
-        reg_write = 0;
-        imm_src = 3'b000;
-        alu_control = 4'b0000;
+        mem_write  = 0;
+        alu_src_b  = 0;
+        // NEW: alu_src_a defaults to rd1 for all existing instructions
+        alu_src_a  = 2'b00;
+        reg_write  = 0;
+        imm_src    = 3'b000;
+        alu_control= 4'b0000;
 
         case (opcode)
             7'b0110011: begin // R-type
@@ -68,7 +76,7 @@ module Decoder(
             7'b0010011: begin // I-type
                 reg_write = 1'b1;
                 alu_src_b = 1'b1;
-                imm_src = 3'b000;
+                imm_src   = 3'b000;
                 case (funct3)
                     3'b000: alu_control = 4'b0000; // addi
                     3'b001: alu_control = 4'b0001; // slli
@@ -83,31 +91,31 @@ module Decoder(
             end
 
             7'b0000011: begin // I-type Load (lw)
-                reg_write = 1'b1;
-                alu_src_b = 1'b1;
+                reg_write  = 1'b1;
+                alu_src_b  = 1'b1;
                 mem_to_reg = 1'b1;
-                imm_src = 3'b000;
-                alu_control = 4'b0000; 
+                imm_src    = 3'b000;
+                alu_control= 4'b0000; 
             end
 
             7'b0100011: begin // S-type (sw)
-                mem_write = 1'b1;
-                alu_src_b = 1'b1;
-                imm_src = 3'b001;
-                alu_control = 4'b0000;
+                mem_write  = 1'b1;
+                alu_src_b  = 1'b1;
+                imm_src    = 3'b001;
+                alu_control= 4'b0000;
             end
 
             7'b1100011: begin // B-type (beq, bne, bge etc.)
-                PCS = 2'b01; 
-                alu_src_b = 1'b0;
-                imm_src = 3'b010;
-                alu_control = 4'b0000;
+                PCS        = 2'b01; 
+                alu_src_b  = 1'b0;
+                imm_src    = 3'b010;
+                alu_control= 4'b0000;
             end
 
             7'b1101111: begin // J-type (jal)
-                PCS = 2'b10;
+                PCS       = 2'b10;
                 reg_write = 1'b1;
-                imm_src = 3'b100;
+                imm_src   = 3'b100;
             end
 
             7'b1100111: begin // I-type (jalr)
@@ -120,9 +128,19 @@ module Decoder(
 
             7'b0110111: begin // U-type (lui)
                 reg_write  = 1'b1;
+                alu_src_a  = 2'b01;  // force src_a = 0 so result = 0 + ext_imm
                 alu_src_b  = 1'b1;
                 imm_src    = 3'b011; // U-type: Extend produces {imm[31:12], 12'b0}
-                alu_control= 4'b1111; // PASS_B: result = src_b = ext_imm
+                alu_control= 4'b0000; // ADD
+            end
+
+            // result = PC + {imm[31:12], 12'b0}, written to rd.
+            7'b0010111: begin // U-type (auipc)
+                reg_write  = 1'b1;
+                alu_src_a  = 2'b10;  // src_a = PC (current program counter)
+                alu_src_b  = 1'b1;
+                imm_src    = 3'b011; // U-type: Extend produces {imm[31:12], 12'b0}
+                alu_control= 4'b0000; // ADD: PC + ext_imm
             end
 
             default: ;

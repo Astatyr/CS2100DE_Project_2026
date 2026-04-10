@@ -61,9 +61,6 @@ module ALU(
                 result = $signed(src_a) >>> src_b[4:0]; // sra / srai
             end
 
-            4'b1111: begin
-                result = src_b; // pass src_b (ext_imm) straight through
-            end
             default: begin
                 result = 32'b0;
             end
