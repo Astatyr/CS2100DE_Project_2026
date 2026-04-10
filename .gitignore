@@ -1,0 +1,43 @@
+# ── Vivado build artefacts ──────────────────────────────────────
+# Synthesis & implementation runs (can be gigabytes)
+*.runs/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.sim/
+*.gen/
+*.Xil/
+
+# Vivado logs and journals (auto-regenerated)
+*.log
+*.jou
+*.str
+
+# Checkpoint and report files
+*.dcp
+*.rpt
+*.rpx
+
+# Bitstream (regenerate from source)
+*.bit
+*.bin
+*.ltx
+
+# Vivado project file (optional: keep .xpr if you want one-click open,
+# exclude if you prefer everyone imports sources manually)
+# *.xpr
+
+# Waveform databases
+*.wdb
+*.vcd
+*.wcfg
+
+# ── OS noise ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor noise ────────────────────────────────────────────────
+*.swp
+*.swo
+.vscode/
+.idea/
