@@ -52,12 +52,16 @@ module RISCV_MMC(
     logic [31:0] rd1, rd2, ext_imm, src_b, write_data;
     logic [31:0] pc_next, pc_current;
     logic [2:0]  alu_flags;
+
+    // pc_src is 2 bits for JALR support later (PCS=2'b11 from Decoder)
+
     logic [1:0]  pc_src;
 
-    // pc_plus4 carries the JAL/JALR return address (PC+4) for writeback into rd
+    // pc_plus4 carries the JAL return address (PC+4) for writeback into rd
     logic [31:0] pc_plus4;
+
+    // src_a is the ALUSrcA MUX output — what actually enters the ALU's A port
     logic [31:0] src_a;
-    logic [31:0] jalr_target;
 
 
 	// Instantiate your extender module here
@@ -84,6 +88,8 @@ module RISCV_MMC(
 
 	// Instantiate your ALU here
 	    ALU alu_inst (
+        // src_a (MUX output) allows LUI (src_a=0) and auipc (src_a=PC)
+        // to feed the ALU correctly without touching the register file output.
         .src_a(src_a),
         .src_b(src_b),   // The MUX output
         .control(alu_control),
@@ -125,9 +131,9 @@ module RISCV_MMC(
     
     // --- Glue Logic (Multiplexers) ---
 
-    // ALU Source A MUX
-    // 2'b01 (LUI)  : src_a = 0      → ALU computes 0 + ext_imm = ext_imm
-    // 2'b10 (auipc): src_a = PC     → ALU computes PC + ext_imm
+    // ALU Source A Mux
+    // 2'b01 (LUI)  : src_a = 0      → ALU computes 0 + ext_imm = ext_imm  //Justin
+    // 2'b10 (auipc): src_a = PC     → ALU computes PC + ext_imm            //Justin
     // default      : src_a = rd1    → normal register-register / register-immediate ops
     assign src_a = (alu_src_a == 2'b01) ? 32'b0      :
                    (alu_src_a == 2'b10) ? pc_current  :
@@ -136,26 +142,19 @@ module RISCV_MMC(
     // ALU Source B Mux
     assign src_b = (alu_src_b) ? ext_imm : rd2;
 
-    // pc_plus4 is the sequential next address - used as the return address for
-    // both JAL (pcs==2'b10) and JALR (pcs==2'b11).
+    // pc_plus4 is the sequential next address - used as the return address for JAL
     assign pc_plus4 = pc_current + 4;
 
-    // Result/Write-back Mux (3-way)
-    // Priority: memory load > JAL/JALR link > ALU result
-    assign write_data = (mem_to_reg)                       ? mem_read_data :
-                        (pcs == 2'b10 || pcs == 2'b11)     ? pc_plus4      :
-                                                             alu_result;
+    // Result/Write-back Mux (2-way + JAL link)
+    // JALR link writeback (pcs==2'b11) is not implemented here - handled by friend
+    assign write_data = (mem_to_reg)     ? mem_read_data :
+                        (pcs == 2'b10)   ? pc_plus4      :
+                                           alu_result;
 
-    // Intermediate JALR target - must be a named signal before Vivado allows bit-slicing
-    assign jalr_target = rd1 + ext_imm;
-
-    // PC Next Mux (3-way)
-    // 2'b01: branch taken or JAL  → PC + ext_imm
-    // 2'b11: JALR                 → (rd1 + ext_imm) with bit 0 cleared (RISC-V spec)
-    // default: normal fetch       → PC + 4
-    assign pc_next = (pc_src == 2'b01) ? (pc_current + ext_imm)    : // branch / jal
-                     (pc_src == 2'b11) ? {jalr_target[31:1], 1'b0} : // jalr (bit 0 cleared)
-                                         (pc_current + 4);            // normal fetch
+    // PC Next Mux (2-way)
+    // JALR target (pc_src==2'b11) To be Implemented
+    assign pc_next = (pc_src == 2'b01) ? (pc_current + ext_imm) : // branch / jal
+                                         (pc_current + 4);         // normal fetch
 
     // Final Output Connections
     assign PC = pc_current;

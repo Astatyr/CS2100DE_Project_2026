@@ -26,8 +26,7 @@ module Decoder(
     output reg mem_to_reg,        
     output reg mem_write,         
     output reg [3:0] alu_control, 
-    // NEW: alu_src_a selects the ALU's first operand (src_a).
-    // This is required by the tutorial Q2.b/Q2.c architecture (ALUSrcA signal).
+    // alu_src_a selects the ALU's first operand (tutorial ALUSrcA signal).
     // 2'b00 = rd1 (register file output, default for all R/I/S/B instructions)
     // 2'b01 = 32'b0 (zero, for LUI: result = 0 + ext_imm = ext_imm)
     // 2'b10 = PC    (for auipc: result = PC + ext_imm)
@@ -117,6 +116,7 @@ module Decoder(
                 imm_src   = 3'b100;
             end
 
+            // JALR: To be implemented
             7'b1100111: begin // I-type (jalr)
                 PCS        = 2'b11;
                 reg_write  = 1'b1;
@@ -125,18 +125,17 @@ module Decoder(
                 alu_control= 4'b0000; // ADD: rs1 + imm = raw jump target
             end
 
-            7'b0110111: begin // U-type (lui)
+            7'b0110111: begin // U-type (lui) //Justin
                 reg_write  = 1'b1;
-                alu_src_a  = 2'b01;
+                alu_src_a  = 2'b01;  // force src_a = 0 so result = 0 + ext_imm
                 alu_src_b  = 1'b1;
                 imm_src    = 3'b011; // U-type: Extend produces {imm[31:12], 12'b0}
-                alu_control= 4'b0000;
+                alu_control= 4'b0000; // ADD
             end
 
-            // result = PC + {imm[31:12], 12'b0}, written to rd.
-            7'b0010111: begin // U-type (auipc)
+            7'b0010111: begin // U-type (auipc) //Justin
                 reg_write  = 1'b1;
-                alu_src_a  = 2'b10;
+                alu_src_a  = 2'b10;  // src_a = PC (current program counter)
                 alu_src_b  = 1'b1;
                 imm_src    = 3'b011; // U-type: Extend produces {imm[31:12], 12'b0}
                 alu_control= 4'b0000; // ADD: PC + ext_imm
