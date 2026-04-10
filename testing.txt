@@ -1,0 +1,722 @@
+.data
+note_to_seg:
+        .word   0
+        .word   4
+        .word   5
+        .word   2
+        .word   3
+
+g_led:      .word 0
+g_dip:      .word 0
+g_btn:      .word 0
+g_seg:      .word 0
+g_mode:     .word 0
+
+g_lane:
+        .space 32          # 8 words
+
+g_lives:    .word 0
+g_score:    .word 0
+g_note_idx: .word 0
+
+g_notes:
+        .space 512         # 128 words
+
+g_seed:     .word 0
+g_rng:      .word 0
+
+.text
+
+j       main           # jump straight to main on reset
+
+rng_next:
+        addi sp,sp,-16
+        sw ra,12(sp)
+        sw s0,8(sp)
+        addi s0,sp,16
+
+        la a5,g_rng
+        lw a5,0(a5)
+
+        slli a4,a5,13
+
+        la a5,g_rng
+        lw a5,0(a5)
+
+        xor a4,a4,a5
+
+        la a5,g_rng
+        sw a4,0(a5)
+
+        la a5,g_rng
+        lw a5,0(a5)
+
+        srli a4,a5,17
+
+        la a5,g_rng
+        lw a5,0(a5)
+
+        xor a4,a4,a5
+
+        la a5,g_rng
+        sw a4,0(a5)
+
+        la a5,g_rng
+        lw a5,0(a5)
+
+        slli a4,a5,5
+
+        la a5,g_rng
+        lw a5,0(a5)
+
+        xor a4,a4,a5
+
+        la a5,g_rng
+        sw a4,0(a5)
+
+        la a5,g_rng
+        lw a5,0(a5)
+
+        mv a0,a5
+
+        lw ra,12(sp)
+        lw s0,8(sp)
+        addi sp,sp,16
+        jr ra
+delay:
+        addi    sp,sp,-48
+        sw      ra,44(sp)
+        sw      s0,40(sp)
+        addi    s0,sp,48
+        sw      a0,-36(s0)
+        sw      zero,-20(s0)
+        j       .L4
+.L5:
+        lw      a5,-20(s0)
+        addi    a5,a5,1
+        sw      a5,-20(s0)
+.L4:
+        lw      a5,-20(s0)
+        lw      a4,-36(s0)
+        bgt     a4,a5,.L5
+        nop
+        nop
+        lw      ra,44(sp)
+        lw      s0,40(sp)
+        addi    sp,sp,48
+        jr      ra
+btn_wait_release:
+        addi    sp,sp,-32
+        sw      ra,28(sp)
+        sw      s0,24(sp)
+        addi    s0,sp,32
+        sw      a0,-20(s0)
+        nop
+.L7:
+        la      a5,g_btn
+        lw      a5,0(a5)
+        lw      a4,0(a5)
+        lw      a5,-20(s0)
+        and     a5,a4,a5
+        bne     a5,zero,.L7
+        nop
+        nop
+        lw      ra,28(sp)
+        lw      s0,24(sp)
+        addi    sp,sp,32
+        jr      ra
+update_leds:
+        addi    sp,sp,-32
+        sw      ra,28(sp)
+        sw      s0,24(sp)
+        addi    s0,sp,32
+        la      a5,g_lives
+        lw      a5,0(a5)
+        bgt     a5,zero,.L9
+        sw      zero,-20(s0)
+        j       .L10
+.L9:
+        la      a5,g_lives
+        lw      a4,0(a5)
+        li      a5,15
+        ble     a4,a5,.L11
+        li      a5,65536
+        addi    a5,a5,-1
+        sw      a5,-20(s0)
+        j       .L10
+.L11:
+        la      a5,g_lives
+        lw      a5,0(a5)
+        li      a4,16
+        sub     a5,a4,a5
+        li      a4,65536
+        addi    a4,a4,-1
+        sll     a5,a4,a5
+        slli    a5,a5,16
+        srli    a5,a5,16
+        sw      a5,-20(s0)
+.L10:
+        la      a5,g_led
+        lw      a5,0(a5)
+        lw      a4,-20(s0)
+        sw      a4,0(a5)
+        nop
+        lw      ra,28(sp)
+        lw      s0,24(sp)
+        addi    sp,sp,32
+        jr      ra
+make_seg_word:
+        addi    sp,sp,-32
+        sw      ra,28(sp)
+        sw      s0,24(sp)
+        addi    s0,sp,32
+        sw      zero,-20(s0)
+        sw      zero,-24(s0)
+        j       .L13
+.L15:
+        lui     a5,%hi(g_lane)
+        addi    a4,a5,%lo(g_lane)
+        lw      a5,-24(s0)
+        slli    a5,a5,2
+        add     a5,a4,a5
+        lw      a5,0(a5)
+        sw      a5,-28(s0)
+        lw      a4,-24(s0)
+        li      a5,6
+        bne     a4,a5,.L14
+        lw      a5,-28(s0)
+        bne     a5,zero,.L14
+        li      a5,1
+        sw      a5,-28(s0)
+.L14:
+        lw      a5,-28(s0)
+        andi    a4,a5,15
+        lw      a5,-24(s0)
+        slli    a5,a5,2
+        sll     a5,a4,a5
+        lw      a4,-20(s0)
+        or      a5,a4,a5
+        sw      a5,-20(s0)
+        lw      a5,-24(s0)
+        addi    a5,a5,1
+        sw      a5,-24(s0)
+.L13:
+        lw      a4,-24(s0)
+        li      a5,7
+        ble     a4,a5,.L15
+        lw      a5,-20(s0)
+        mv      a0,a5
+        lw      ra,28(sp)
+        lw      s0,24(sp)
+        addi    sp,sp,32
+        jr      ra
+is_hit:
+        addi    sp,sp,-32
+        sw      ra,28(sp)
+        sw      s0,24(sp)
+        addi    s0,sp,32
+        sw      a0,-20(s0)
+        sw      a1,-24(s0)
+        lw      a4,-20(s0)
+        li      a5,2
+        bne     a4,a5,.L18
+        lw      a5,-24(s0)
+        andi    a5,a5,8
+        bne     a5,zero,.L19
+.L18:
+        lw      a4,-20(s0)
+        li      a5,3
+        bne     a4,a5,.L20
+        lw      a5,-24(s0)
+        andi    a5,a5,1
+        bne     a5,zero,.L19
+.L20:
+        lw      a4,-20(s0)
+        li      a5,4
+        bne     a4,a5,.L21
+        lw      a5,-24(s0)
+        andi    a5,a5,4
+        bne     a5,zero,.L19
+.L21:
+        lw      a4,-20(s0)
+        li      a5,5
+        bne     a4,a5,.L22
+        lw      a5,-24(s0)
+        andi    a5,a5,2
+        beq     a5,zero,.L22
+.L19:
+        li      a5,1
+        j       .L23
+.L22:
+        li      a5,0
+.L23:
+        mv      a0,a5
+        lw      ra,28(sp)
+        lw      s0,24(sp)
+        addi    sp,sp,32
+        jr      ra
+show_start_screen:
+        addi    sp,sp,-32
+        sw      ra,28(sp)
+        sw      s0,24(sp)
+        addi    s0,sp,32
+
+        # g_mode = 0
+        la      a5,g_mode
+        lw      a5,0(a5)
+        sw      zero,0(a5)
+
+        # g_led = 0
+        la      a5,g_led
+        lw      a5,0(a5)
+        sw      zero,0(a5)
+
+.L28:
+        # read DIP switches -> g_seed
+        la      a5,g_dip
+        lw      a5,0(a5)      # load address of DIP register
+        lw      a5,0(a5)      # read DIP value
+        slli    a5,a5,16
+        srli    a5,a5,16
+        mv      a4,a5
+
+        la      a5,g_seed
+        sw      a4,0(a5)
+
+        # prepare display word
+        la      a5,g_seed
+        lw      a5,0(a5)
+        slli    a5,a5,16
+        srli    a5,a5,16
+        mv      a4,a5
+
+        li      a5,1592590336
+        or      a5,a4,a5
+        sw      a5,-20(s0)
+
+        # write to 7-seg display
+        la      a5,g_seg
+        lw      a5,0(a5)
+        lw      a4,-20(s0)
+        sw      a4,0(a5)
+
+        # wait for start button
+        la      a5,g_btn
+        lw      a5,0(a5)
+        lw      a5,0(a5)
+        andi    a5,a5,16
+        beq     a5,zero,.L28
+
+        li      a0,16
+        call    btn_wait_release
+
+        lw      ra,28(sp)
+        lw      s0,24(sp)
+        addi    sp,sp,32
+        jr      ra
+generate_notes:
+        addi    sp,sp,-32
+        sw      ra,28(sp)
+        sw      s0,24(sp)
+        addi    s0,sp,32
+
+        sw      zero,-24(s0)
+        la      a5,g_seed
+        lw      a5,0(a5)
+        mv      a4,a5
+
+        la      a5,g_rng
+        sw      a4,0(a5)
+        la      a5,g_rng
+        lw      a5,0(a5)
+        bne     a5,zero,.L31
+
+        la      a5,g_rng
+        li      a4,-559038464
+        addi    a4,a4,-273
+        sw      a4,0(a5)
+.L31:
+        sw      zero,-20(s0)
+        j       .L32
+
+.L36:
+        call    rng_next
+        sw      a0,-28(s0)
+
+        lw      a5,-24(s0)
+        addi    a5,a5,1
+        sw      a5,-24(s0)
+
+        lw      a4,-24(s0)
+        li      a5,3
+        bne     a4,a5,.L33
+
+        sw      zero,-24(s0)
+
+        la      a4,g_notes
+        lw      a5,-20(s0)
+        slli    a5,a5,2
+        add     a5,a4,a5
+        sw      zero,0(a5)
+
+        j       .L34
+
+
+.L33:
+        lw      a5,-28(s0)
+        andi    a4,a5,255
+        li      a5,153
+        bgtu    a4,a5,.L35
+
+        lw      a5,-28(s0)
+        andi    a5,a5,3
+        addi    a4,a5,1
+
+        la      a3,g_notes
+        lw      a5,-20(s0)
+        slli    a5,a5,2
+        add     a5,a3,a5
+        sw      a4,0(a5)
+
+        j       .L34
+
+
+.L35:
+        la      a4,g_notes
+        lw      a5,-20(s0)
+        slli    a5,a5,2
+        add     a5,a4,a5
+        sw      zero,0(a5)
+
+
+.L34:
+        lw      a5,-20(s0)
+        addi    a5,a5,1
+        sw      a5,-20(s0)
+
+
+.L32:
+        lw      a4,-20(s0)
+        li      a5,127
+        ble     a4,a5,.L36
+
+        lw      ra,28(sp)
+        lw      s0,24(sp)
+        addi    sp,sp,32
+        jr      ra
+tick_advance:
+        addi    sp,sp,-32
+        sw      ra,28(sp)
+        sw      s0,24(sp)
+        addi    s0,sp,32
+
+        li      a5,7
+        sw      a5,-20(s0)
+
+        j       .L38
+
+
+.L39:
+        lw      a5,-20(s0)
+        addi    a5,a5,-1
+
+        la      a4,g_lane
+        slli    a5,a5,2
+        add     a5,a4,a5
+        lw      a4,0(a5)
+
+        la      a3,g_lane
+        lw      a5,-20(s0)
+        slli    a5,a5,2
+        add     a5,a3,a5
+        sw      a4,0(a5)
+
+        lw      a5,-20(s0)
+        addi    a5,a5,-1
+        sw      a5,-20(s0)
+
+
+.L38:
+        lw      a5,-20(s0)
+        bgt     a5,zero,.L39
+
+
+        la      a5,g_lane
+        sw      zero,0(a5)
+
+
+        la      a5,g_lane
+        lw      a5,28(a5)
+        beq     a5,zero,.L40
+
+
+        la      a5,g_lives
+        lw      a5,0(a5)
+
+        addi    a4,a5,-1
+
+        la      a5,g_lives
+        sw      a4,0(a5)
+
+        call    update_leds
+
+
+        la      a5,g_lane
+        sw      zero,28(a5)
+
+
+.L40:
+        la      a5,g_note_idx
+        lw      a4,0(a5)
+
+        li      a5,127
+        bgt     a4,a5,.L41
+
+
+        la      a5,g_note_idx
+        lw      a5,0(a5)
+
+        addi    a3,a5,1
+
+        la      a4,g_note_idx
+        sw      a3,0(a4)
+
+
+        la      a4,g_notes
+        slli    a5,a5,2
+        add     a5,a4,a5
+        lw      a5,0(a5)
+
+        sw      a5,-24(s0)
+
+
+        lw      a5,-24(s0)
+        blt     a5,zero,.L42
+
+
+        lw      a4,-24(s0)
+        li      a5,4
+        bgt     a4,a5,.L42
+
+
+        la      a4,note_to_seg
+        lw      a5,-24(s0)
+        slli    a5,a5,2
+        add     a5,a4,a5
+        lw      a5,0(a5)
+
+        j       .L43
+
+
+.L42:
+        li      a5,0
+
+
+.L43:
+        la      a4,g_lane
+        sw      a5,0(a4)
+
+
+.L41:
+        call    make_seg_word
+        mv      a4,a0
+
+
+        la      a5,g_seg
+        lw      a5,0(a5)
+        sw      a4,0(a5)
+
+
+        lw      ra,28(sp)
+        lw      s0,24(sp)
+        addi    sp,sp,32
+        jr      ra
+run_game:
+        addi    sp,sp,-32
+        sw      ra,28(sp)
+        sw      s0,24(sp)
+        addi    s0,sp,32
+
+        sw      zero,-20(s0)
+
+        j       .L45
+
+
+.L46:
+        la      a4,g_lane
+
+        lw      a5,-20(s0)
+        slli    a5,a5,2
+        add     a5,a4,a5
+        sw      zero,0(a5)
+
+        lw      a5,-20(s0)
+        addi    a5,a5,1
+        sw      a5,-20(s0)
+
+
+.L45:
+        lw      a4,-20(s0)
+        li      a5,7
+        ble     a4,a5,.L46
+
+
+        la      a5,g_lives
+        li      a4,16
+        sw      a4,0(a5)
+
+
+        la      a5,g_score
+        sw      zero,0(a5)
+
+
+        la      a5,g_note_idx
+        sw      zero,0(a5)
+        la      a5,g_mode
+        lw      a5,0(a5)
+        li      a4,1
+        sw      a4,0(a5)
+        call    update_leds
+        call    make_seg_word
+        mv      a4,a0
+        la      a5,g_seg
+        lw      a5,0(a5)
+        sw      a4,0(a5)
+        j       .L47
+.L53:
+        sw      zero,-28(s0)
+        j       .L48
+.L52:
+        la      a5,g_btn
+        lw      a5,0(a5)
+        lw      a5,0(a5)
+        sw      a5,-24(s0)
+        lw      a5,-24(s0)
+        andi    a5,a5,16
+        beq     a5,zero,.L49
+        li      a0,16
+        call    btn_wait_release
+        li      a5,-1
+        j       .L50
+.L49:
+        lui     a5,%hi(g_lane)    # KEEP — lui+addi+%hi/%lo is valid in RARS
+        addi    a5,a5,%lo(g_lane)
+        lw      a5,24(a5)
+        beq     a5,zero,.L51
+        lui     a5,%hi(g_lane)    # KEEP
+        addi    a5,a5,%lo(g_lane)
+        lw      a5,24(a5)
+        lw      a1,-24(s0)
+        mv      a0,a5
+        call    is_hit
+        mv      a5,a0
+        beq     a5,zero,.L51
+        la      a5,g_score
+        lw      a5,0(a5)
+        addi    a4,a5,1
+        la      a5,g_score
+        sw      a4,0(a5)
+        lui     a5,%hi(g_lane)    # KEEP
+        addi    a5,a5,%lo(g_lane)
+        sw      zero,24(a5)
+        call    make_seg_word
+        mv      a4,a0
+        la      a5,g_seg
+        lw      a5,0(a5)
+        sw      a4,0(a5)
+.L51:
+        lw      a5,-28(s0)
+        addi    a5,a5,1
+        sw      a5,-28(s0)
+.L48:
+        lw      a4,-28(s0)
+        li      a5,999424
+        addi    a5,a5,575
+        ble     a4,a5,.L52
+        call    tick_advance
+.L47:
+        la      a5,g_lives
+        lw      a5,0(a5)
+        bgt     a5,zero,.L53
+        la      a5,g_score
+        lw      a5,0(a5)
+.L50:
+        mv      a0,a5
+        lw      ra,28(sp)
+        lw      s0,24(sp)
+        addi    sp,sp,32
+        jr      ra
+show_game_over:
+        addi    sp,sp,-32
+        sw      ra,28(sp)
+        sw      s0,24(sp)
+        addi    s0,sp,32
+        sw      a0,-20(s0)
+        la      a5,g_led
+        lw      a5,0(a5)
+        sw      zero,0(a5)
+        la      a5,g_mode
+        lw      a5,0(a5)
+        sw      zero,0(a5)
+        la      a5,g_seg
+        lw      a5,0(a5)
+        li      a4,-2004316160
+        addi    a4,a4,-1912
+        sw      a4,0(a5)
+        li      a5,1998848
+        addi    a0,a5,1152
+        call    delay
+        la      a5,g_seg
+        lw      a5,0(a5)
+        lw      a4,-20(s0)
+        sw      a4,0(a5)
+.L55:
+        la      a5,g_btn
+        lw      a5,0(a5)
+        lw      a5,0(a5)
+        andi    a5,a5,16
+        beq     a5,zero,.L55
+        li      a0,16
+        call    btn_wait_release
+        lw      ra,28(sp)
+        lw      s0,24(sp)
+        addi    sp,sp,32
+        jr      ra
+main:
+        addi    sp,sp,-32
+        sw      ra,28(sp)
+        sw      s0,24(sp)
+        addi    s0,sp,32
+        la      a5,g_led
+        li      a4,8192
+        addi    a4,a4,1024
+        sw      a4,0(a5)
+        la      a5,g_dip
+        li      a4,8192
+        addi    a4,a4,1028
+        sw      a4,0(a5)
+        la      a5,g_btn
+        li      a4,8192
+        addi    a4,a4,1032
+        sw      a4,0(a5)
+        la      a5,g_seg
+        li      a4,8192
+        addi    a4,a4,1048
+        sw      a4,0(a5)
+        la      a5,g_mode
+        li      a4,8192
+        addi    a4,a4,1052
+        sw      a4,0(a5)
+.L59:
+        call    show_start_screen
+        call    generate_notes
+        call    run_game
+        sw      a0,-20(s0)
+        lw      a5,-20(s0)
+        blt     a5,zero,.L60
+        lw      a0,-20(s0)
+        call    show_game_over
+        j       .L59
+.L60:
+        nop
+        j       .L59

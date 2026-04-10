@@ -36,15 +36,17 @@ module Top_MMC(
     localparam SW_ADDRESS       = 32'h2404;
     localparam BTN_ADDRESS      = 32'h2408;
     localparam SS_ADDRESS       = 32'h2418;
+    // NEW: rhythm game segment mode register.
+    // CPU writes 1 here to switch SevenSegDecoder to game shapes,
+    // writes 0 to restore hex digits for score/game-over display.
     localparam SEG_MODE_ADDRESS = 32'h241C;
     
-    // FIX 1: IROM expanded from [0:255] to [0:1023] (4 KB).
-    // The assembled rhythm game is 542 instructions — more than double the old
-    // 256-word (1 KB) limit. 1024 words covers up to PC = 0xFFC, which is
-    // enough headroom. PC bound updated from 0x400 to 0x1000, index from
-    // PC[9:2] (8-bit) to PC[11:2] (10-bit) to match the wider array.
-    logic [31:0] instruction_rom [0:1023];
-
+    logic [31:0] instruction_rom [0:255];
+    // FIX: expanded from [0:255] to [0:2047].
+    // RARS compact memory config initialises sp to 0x3FFC. The stack grows
+    // downward from there; the deepest frame chain uses ~160 bytes, reaching
+    // ~0x3F5C. DMEM must cover 0x2000-0x3FFC (2048 words) to hold both the
+    // .data globals and the stack without silent write-drops.
     logic [31:0] data_memory [0:2047];
     
     logic clk_cpu;
@@ -57,6 +59,7 @@ module Top_MMC(
     logic [31:0] mem_write_data;
     
     logic [31:0] seven_seg_data;
+    // NEW: single-bit register selecting the SevenSegDecoder decode table.
     logic base_mode;
     logic [3:0] counter;
     
@@ -78,61 +81,59 @@ module Top_MMC(
         counter        <= 0;
         led            <= 0;
         seven_seg_data <= 0;
+        // NEW: start in hex mode; rhythm game writes 1 to switch to game shapes
         base_mode      <= 0;
     end
     
+    // Returning instruction words from the instruction memory. Memory reading is combinational. 
     always_comb begin
-        if (PC >= 32'h0 && PC < 32'h1000) begin
-            instr = instruction_rom[PC[11:2]];
+        if (PC >= 32'h0 && PC < 32'h400) begin
+            instr = instruction_rom[PC[9:2]];
         end
         else begin
             instr = 32'hBAAAAAAD;
         end
     end
     
-    // Returning data words from the data memory or MMIO. Memory reading is combinational.
-    // FIX 2: MMIO addresses checked BEFORE the DMEM range.
-    // All MMIO addresses (0x2400-0x241C) fall inside the expanded DMEM range
-    // (0x2000-0x3FFC). If DMEM were checked first, reads from SW and BTN
-    // would return stale data_memory values instead of live hardware inputs —
-    // the game would never see switch or button changes.
+    // Returning data words from the data memory or MMIO. Memory reading is combinational. 
     always_comb begin
-        if (mem_addr == SW_ADDRESS) begin
+        if (mem_addr >= 32'h2000 && mem_addr <= 32'h3FFC) begin
+            mem_read_data = data_memory[mem_addr[12:2]];
+        end
+        else if (mem_addr == SW_ADDRESS) begin
             mem_read_data = {16'b0, sw};
         end
         else if (mem_addr == BTN_ADDRESS) begin
-            mem_read_data = {27'b0, btnC, btnU, btnL, btnR, btnD};
-        end
-        else if (mem_addr >= 32'h2000 && mem_addr <= 32'h3FFC) begin
-            mem_read_data = data_memory[mem_addr[12:2]];
+            mem_read_data = {27'b0, btnC, btnU, btnL, btnR, btnD}; 
         end
         else begin
             mem_read_data = 32'hDDEEAADD;
         end
     end
     
-    // Writing data words to the data memory or MMIO. Memory writing is sequential.
-    // FIX 2 (continued): MMIO addresses checked BEFORE the DMEM range for writes.
-    // If DMEM were checked first, writes to LED (0x2400), SS (0x2418), and
-    // SEG_MODE (0x241C) would silently update data_memory[256/262/263] instead
-    // of the MMIO registers — LEDs and the 7-seg display would never update.
+    // Writing data words to the data memory or MMIO. Memory writing is sequential. 
     always @(posedge clk_cpu) begin
         if (mem_we) begin
-            if (mem_addr == LED_ADDRESS) begin
+            // FIX: write bounds and index must match the read path above.
+            //      Old code used 0x23FC / [9:2] — any sw to the stack region
+            //      (0x2400-0x3FFC) was silently dropped, corrupting all returns.
+            if (mem_addr >= 32'h2000 && mem_addr <= 32'h3FFC) begin
+                data_memory[mem_addr[12:2]] <= mem_write_data;
+            end
+            else if (mem_addr == LED_ADDRESS) begin
                 led <= mem_write_data[15:0];
             end
             else if (mem_addr == SS_ADDRESS) begin
                 seven_seg_data <= mem_write_data;
             end
+
             else if (mem_addr == SEG_MODE_ADDRESS) begin
                 base_mode <= mem_write_data[0];
-            end
-            else if (mem_addr >= 32'h2000 && mem_addr <= 32'h3FFC) begin
-                data_memory[mem_addr[12:2]] <= mem_write_data;
             end
         end
     end
     
+    // Similar architecture to the one designed in Lab 2/3
     SevenSegDecoder ss_decoder (
         .clk(clk_cpu),
         .data(seven_seg_data),
