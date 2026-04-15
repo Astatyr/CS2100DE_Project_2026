@@ -58,14 +58,14 @@ module Top_MMC(
     logic [3:0] counter;
     
     // ONLY FOR SIMULATION - COMMENT OUT FOR HARDWARE IMPLEMENTATION!!!
-    assign clk_cpu = clk;
+    //assign clk_cpu = clk;
     
     // ONLY FOR HARDWARE IMPLEMENTATION - COMMENT OUT FOR SIMULATION!!!
-    // assign clk_cpu = counter[3];
-    //
-    // always @(posedge clk) begin
-    //     counter <= counter + 1;
-    // end
+    assign clk_cpu = counter[3];
+    
+    always @(posedge clk) begin
+         counter <= counter + 1;
+    end
     
     // Initializing our instruction and data memories
     initial begin

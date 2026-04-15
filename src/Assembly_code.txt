@@ -15,7 +15,7 @@
     # Load addresses
     lui  x10, 2          # 0x2000
     addi x10, x10, 0x400 # LED   = 0x2400
-    addi x11, x10, 4     # BTN   = 0x2408 (note: 0x2404 is SW, 0x2408 is BTN)
+    addi x11, x10, 8     # BTN   = 0x2408 (note: 0x2404 is SW, 0x2408 is BTN)
     addi x12, x10, 0x18  # SS    = 0x2418
     addi x13, x10, 4     # SW    = 0x2404
 

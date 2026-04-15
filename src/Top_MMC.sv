@@ -61,14 +61,14 @@ logic [31:0] seven_seg_data;
     logic [15:0] lfsr;
 
     // ONLY FOR SIMULATION - COMMENT OUT FOR HARDWARE IMPLEMENTATION!!!
-    //assign clk_cpu = clk;
+    assign clk_cpu = clk;
 
     // ONLY FOR HARDWARE IMPLEMENTATION - COMMENT OUT FOR SIMULATION!!!
-    assign clk_cpu = counter[3];
+    //assign clk_cpu = counter[3];
 
-    always @(posedge clk) begin
-        counter <= counter + 1;
-    end
+    //always @(posedge clk) begin
+    //    counter <= counter + 1;
+    //end
 
     // Timer increments every CPU clock.
     // Purpose: software can read this as a changing value for timing or delays.
