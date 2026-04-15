@@ -23,7 +23,7 @@
 module SevenSegDecoder(
     input clk,
     input [31:0] data,
-    output logic [6:0] seg,
+    output reg [6:0] seg,
     output reg [7:0] an
     );
     

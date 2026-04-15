@@ -31,44 +31,48 @@ module ALU(
     always @(src_a, src_b, control) begin
         case (control)
             4'b0000: begin
-                result = src_a + src_b;
+                result <= src_a + src_b;
             end
             4'b0001: begin
-                result = src_a << src_b[4:0];   // sll / slli
+                result <= src_a << src_b;
             end
             4'b0010: begin
-                result = ($signed(src_a) < $signed(src_b)) ? 1 : 0;
+                result <= ($signed(src_a) < $signed(src_b)) ? 1 : 0;
             end
             4'b0011: begin
-                result = (src_a < src_b) ? 1 : 0;
+                result <= (src_a < src_b) ? 1 : 0;
             end
             4'b0100: begin
-                result = src_a ^ src_b;
+                result <= src_a ^ src_b;
             end
             4'b0101: begin
-                result = src_a >> src_b[4:0];   // srl / srli
+                result <= src_a >> src_b;
             end
             4'b0110: begin
-                result = src_a | src_b;
+                result <= src_a | src_b;
             end
             4'b0111: begin
-                result = src_a & src_b;
+                result <= src_a & src_b;
             end
             4'b1000: begin
-                result = src_a - src_b;
+                result <= src_a - src_b;
             end
             4'b1101: begin
-                result = $signed(src_a) >>> src_b[4:0]; // sra / srai
+                result <= src_a >>> src_b;
             end
-
+            4'b1001: begin
+                result <= src_a * src_b;
+            end
             default: begin
-                result = 32'b0;
+                result <= 32'b0;
             end
         endcase
-        flags[2] = (src_a == src_b) ? 1 : 0;
-        flags[1] = ($signed(src_a) < $signed(src_b)) ? 1 : 0;
-        flags[0] = (src_a < src_b) ? 1 : 0;
+        flags[2] <= (src_a == src_b) ? 1 : 0;
+        flags[1] <= ($signed(src_a) < $signed(src_b)) ? 1 : 0;
+        flags[0] <= (src_a < src_b) ? 1 : 0;
     end
 endmodule
+
+
 
 

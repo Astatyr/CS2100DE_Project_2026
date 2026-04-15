@@ -31,22 +31,17 @@ module Top_MMC(
     output [6:0] seg,
     output [7:0] an
     );
-    
-    localparam LED_ADDRESS      = 32'h2400;
-    localparam SW_ADDRESS       = 32'h2404;
-    localparam BTN_ADDRESS      = 32'h2408;
-    localparam SS_ADDRESS       = 32'h2418;
-    localparam SEG_MODE_ADDRESS = 32'h241C;
-    
-    // FIX 1: IROM expanded from [0:255] to [0:1023] (4 KB).
-    // The assembled rhythm game is 542 instructions — more than double the old
-    // 256-word (1 KB) limit. 1024 words covers up to PC = 0xFFC, which is
-    // enough headroom. PC bound updated from 0x400 to 0x1000, index from
-    // PC[9:2] (8-bit) to PC[11:2] (10-bit) to match the wider array.
-    logic [31:0] instruction_rom [0:1023];
 
-    logic [31:0] data_memory [0:2047];
-    
+    localparam LED_ADDRESS   = 32'h2400;
+    localparam SW_ADDRESS    = 32'h2404;
+    localparam BTN_ADDRESS   = 32'h2408;
+    localparam TIMER_ADDRESS = 32'h240C;
+    localparam RNG_ADDRESS   = 32'h2410;
+    localparam SS_ADDRESS    = 32'h2418;
+
+    logic [31:0] instruction_rom [0:255];
+    logic [31:0] data_memory [0:255];
+
     logic clk_cpu;
     logic [31:0] instr;
     logic [31:0] mem_read_data;
@@ -55,92 +50,105 @@ module Top_MMC(
     logic [31:0] PC;
     logic [31:0] mem_addr;
     logic [31:0] mem_write_data;
-    
-    logic [31:0] seven_seg_data;
-    logic base_mode;
+
+logic [31:0] seven_seg_data;
     logic [3:0] counter;
-    
+
+    // Timer = free-running counter readable by software
+    logic [31:0] timer_counter;
+
+    // LFSR = pseudo-random number generator for game logic
+    logic [15:0] lfsr;
+
     // ONLY FOR SIMULATION - COMMENT OUT FOR HARDWARE IMPLEMENTATION!!!
-    //assign clk_cpu = clk; 
-    
+    //assign clk_cpu = clk;
+
     // ONLY FOR HARDWARE IMPLEMENTATION - COMMENT OUT FOR SIMULATION!!!
     assign clk_cpu = counter[3];
-    
+
     always @(posedge clk) begin
         counter <= counter + 1;
     end
-    
+
+    // Timer increments every CPU clock.
+    // Purpose: software can read this as a changing value for timing or delays.
+    always @(posedge clk_cpu) begin
+        timer_counter <= timer_counter + 1;
+    end
+
+    // 16-bit LFSR pseudo-random generator.
+    // Purpose: software can read this for pseudo-random game behaviour.
+    always @(posedge clk_cpu) begin
+        lfsr <= {lfsr[14:0], lfsr[15] ^ lfsr[14] ^ lfsr[12] ^ lfsr[3]};
+    end
+
     // Initializing our instruction and data memories
     initial begin
         $readmemh("AA_IROM.mem", instruction_rom);
         $readmemh("AA_DMEM.mem", data_memory);
-        
-        counter        <= 0;
-        led            <= 0;
+
+        counter <= 0;
+        led <= 0;
         seven_seg_data <= 0;
-        base_mode      <= 0;
+        timer_counter <= 32'h0;
+        lfsr <= 16'hACE1; // non-zero seed; an LFSR gets stuck if seeded with 0
     end
-    
+
+    // Returning instruction words from the instruction memory. Memory reading is combinational.
     always_comb begin
-        if (PC >= 32'h0 && PC < 32'h1000) begin
-            instr = instruction_rom[PC[11:2]];
+        if (PC >= 32'h0 && PC < 32'hFF) begin
+            instr <= instruction_rom[PC[10:2]];
         end
         else begin
-            instr = 32'hBAAAAAAD;
+            instr <= 32'hBAAAAAAD;
         end
     end
-    
+
     // Returning data words from the data memory or MMIO. Memory reading is combinational.
-    // FIX 2: MMIO addresses checked BEFORE the DMEM range.
-    // All MMIO addresses (0x2400-0x241C) fall inside the expanded DMEM range
-    // (0x2000-0x3FFC). If DMEM were checked first, reads from SW and BTN
-    // would return stale data_memory values instead of live hardware inputs —
-    // the game would never see switch or button changes.
     always_comb begin
-        if (mem_addr == SW_ADDRESS) begin
-            mem_read_data = {16'b0, sw};
+        if (mem_addr >= 32'h2000 && mem_addr <= 32'h20FF) begin
+            mem_read_data <= data_memory[mem_addr[10:2]];
+        end
+        else if (mem_addr == SW_ADDRESS) begin
+            mem_read_data <= {16'b0, sw};
         end
         else if (mem_addr == BTN_ADDRESS) begin
-            mem_read_data = {27'b0, btnC, btnU, btnL, btnR, btnD};
+            mem_read_data <= {27'b0, btnC, btnU, btnL, btnR, btnD};
         end
-        else if (mem_addr >= 32'h2000 && mem_addr <= 32'h3FFC) begin
-            mem_read_data = data_memory[mem_addr[12:2]];
+        else if (mem_addr == TIMER_ADDRESS) begin
+            mem_read_data <= timer_counter;
+        end
+        else if (mem_addr == RNG_ADDRESS) begin
+            mem_read_data <= {16'b0, lfsr};
         end
         else begin
-            mem_read_data = 32'hDDEEAADD;
+            mem_read_data <= 32'hDDEEAADD;
         end
     end
-    
+
     // Writing data words to the data memory or MMIO. Memory writing is sequential.
-    // FIX 2 (continued): MMIO addresses checked BEFORE the DMEM range for writes.
-    // If DMEM were checked first, writes to LED (0x2400), SS (0x2418), and
-    // SEG_MODE (0x241C) would silently update data_memory[256/262/263] instead
-    // of the MMIO registers — LEDs and the 7-seg display would never update.
     always @(posedge clk_cpu) begin
         if (mem_we) begin
-            if (mem_addr == LED_ADDRESS) begin
+            if (mem_addr >= 32'h2000 && mem_addr <= 32'h20FF) begin
+                data_memory[mem_addr[10:2]] <= mem_write_data;
+            end
+            else if (mem_addr == LED_ADDRESS) begin
                 led <= mem_write_data[15:0];
             end
             else if (mem_addr == SS_ADDRESS) begin
                 seven_seg_data <= mem_write_data;
             end
-            else if (mem_addr == SEG_MODE_ADDRESS) begin
-                base_mode <= mem_write_data[0];
-            end
-            else if (mem_addr >= 32'h2000 && mem_addr <= 32'h3FFC) begin
-                data_memory[mem_addr[12:2]] <= mem_write_data;
-            end
         end
     end
-    
+
+    // Similar architecture to the one designed in Lab 2/3
     SevenSegDecoder ss_decoder (
         .clk(clk_cpu),
         .data(seven_seg_data),
-        .base_mode(base_mode),
         .seg(seg),
         .an(an)
     );
-    
+
     // Our CPU
     RISCV_MMC cpu (
         .clk(clk_cpu),
@@ -153,5 +161,5 @@ module Top_MMC(
         .alu_result(mem_addr),
         .mem_write_data(mem_write_data)
     );
-    
+
 endmodule

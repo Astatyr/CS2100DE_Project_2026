@@ -21,145 +21,150 @@
 
 
 module RISCV_MMC(
-    input clk,
-    input rst,
-    //input Interrupt,      // for optional future use.
-    input [31:0] instr,
-    input [31:0] mem_read_data,       // v2: Renamed to support lb/lbu/lh/lhu
-    output mem_read,
-    output mem_write,  // Delete reg for release. v2: Changed to column-wise write enable to support sb/sw. Each column is a byte.
+    input         clk,
+    input         rst,
+
+    // Instruction memory interface
+    input  [31:0] instr,
+
+    // Data memory interface
+    input  [31:0] mem_read_data,
+    output        mem_read,
+    output        mem_write,
     output [31:0] PC,
     output [31:0] alu_result,
-    output [31:0] mem_write_data  // Delete reg for release. v2: Renamed to support sb/sw
-    );
+    output [31:0] mem_write_data
+);
 
+    assign mem_read = mem_to_reg;
 
-	// Create all the wires/logic signals you need here
-	// Instruction Fields (sliced from the 32-bit instr)
+    // -------------------------------------------------------------------------
+    // Instruction field extraction
+    // -------------------------------------------------------------------------
     logic [4:0] rs1, rs2, rd;
     assign rs1 = instr[19:15];
     assign rs2 = instr[24:20];
     assign rd  = instr[11:7];
 
-    // Control Signals from Decoder
+    // -------------------------------------------------------------------------
+    // Control signals
+    // -------------------------------------------------------------------------
     logic [1:0] pcs;
-    logic mem_to_reg, alu_src_b, reg_write;
+    logic       mem_to_reg;
+    logic       alu_src_b;
+    logic [1:0] alu_src_a;    // 00=rs1, 01=zero (LUI), 10=PC (AUIPC)
+    logic       reg_write;
     logic [2:0] imm_src;
     logic [3:0] alu_control;
-    logic [1:0] alu_src_a;
+    logic       link_reg;     // 1 = write PC+4 to rd (JAL / JALR)
 
-    // Data path signals
-    logic [31:0] rd1, rd2, ext_imm, src_b, write_data;
-    logic [31:0] pc_next, pc_current;
+    // -------------------------------------------------------------------------
+    // Datapath signals
+    // -------------------------------------------------------------------------
+    logic [31:0] rd1, rd2;
+    logic [31:0] ext_imm;
+    logic [31:0] src_a, src_b;
+    logic [31:0] write_data;
+    logic [31:0] pc_next;
+    logic [31:0] pc_current;
     logic [2:0]  alu_flags;
+    logic [1:0]  pc_src;      // 00=PC+4, 01=PC+imm, 11=ALU result (JALR)
 
-    // pc_src is 2 bits for JALR support later (PCS=2'b11 from Decoder)
+    // =========================================================================
+    // Sub-module instantiations
+    // =========================================================================
 
-    logic [1:0]  pc_src;
-
-    // pc_plus4 carries the JAL return address (PC+4) for writeback into rd
-    logic [31:0] pc_plus4;
-
-    // src_a is the ALUSrcA MUX output — what actually enters the ALU's A port
-    logic [31:0] src_a;
-
-
-	// Instantiate your extender module here
-	    Extend ext_inst (
-        .instr_imm(instr[31:7]),
-        .imm_src(imm_src),
-        .ext_imm(ext_imm)
-    );
-    
-
-	// Instantiate your instruction decoder here
-	Decoder dec_inst (
-        .instr(instr),
-        .PCS(pcs),
-        .mem_to_reg(mem_to_reg),
-        .mem_write(mem_write),     // Connects directly to the output port
-        .alu_control(alu_control),
-        .alu_src_a(alu_src_a),
-        .alu_src_b(alu_src_b),
-        .imm_src(imm_src),
-        .reg_write(reg_write)
+    Extend ext_inst (
+        .instr_imm (instr[31:7]),
+        .imm_src   (imm_src),
+        .ext_imm   (ext_imm)
     );
 
-
-	// Instantiate your ALU here
-	    ALU alu_inst (
-        // src_a (MUX output) allows LUI (src_a=0) and auipc (src_a=PC)
-        // to feed the ALU correctly without touching the register file output.
-        .src_a(src_a),
-        .src_b(src_b),   // The MUX output
-        .control(alu_control),
-        .result(alu_result), // Connects directly to the output port
-        .flags(alu_flags)
+    Decoder dec_inst (
+        .instr       (instr),
+        .PCS         (pcs),
+        .mem_to_reg  (mem_to_reg),
+        .mem_write   (mem_write),
+        .alu_control (alu_control),
+        .alu_src_b   (alu_src_b),
+        .alu_src_a   (alu_src_a),
+        .imm_src     (imm_src),
+        .reg_write   (reg_write),
+        .link_reg    (link_reg)
     );
 
-
-	// Instantiate the Register File
-	RegFile rf_inst (
-        .clk(clk),
-        .we(reg_write),
-        .rs1(rs1),
-        .rs2(rs2),
-        .rd(rd),
-        .WD(write_data), // The MUX output
-        .RD1(rd1),
-        .RD2(rd2)
+    ALU alu_inst (
+        .src_a   (src_a),
+        .src_b   (src_b),
+        .control (alu_control),
+        .result  (alu_result),
+        .flags   (alu_flags)
     );
 
+    RegFile rf_inst (
+        .clk (clk),
+        .we  (reg_write),
+        .rs1 (rs1),
+        .rs2 (rs2),
+        .rd  (rd),
+        .WD  (write_data),
+        .RD1 (rd1),
+        .RD2 (rd2)
+    );
 
-	// Instantiate the PC Logic
     PC_Logic pc_logic_inst (
-        .PCS(pcs),              // From Decoder
-        .funct3(instr[14:12]),  // From Instruction
-        .alu_flags(alu_flags),  // From ALU
-        .PC_src(pc_src)         // Output decision
-    );	
-
-
-	// Instantiate the Program Counter
-	ProgramCounter pc_inst (
-        .clk(clk),
-        .rst(rst),
-        .pc_in(pc_next),
-        .pc(pc_current)
+        .PCS       (pcs),
+        .funct3    (instr[14:12]),
+        .alu_flags (alu_flags),
+        .PC_src    (pc_src)
     );
-    
-    
-    // --- Glue Logic (Multiplexers) ---
 
-    // ALU Source A Mux
-    // 2'b01 (LUI)  : src_a = 0      → ALU computes 0 + ext_imm = ext_imm  //Justin
-    // 2'b10 (auipc): src_a = PC     → ALU computes PC + ext_imm            //Justin
-    // default      : src_a = rd1    → normal register-register / register-immediate ops
-    assign src_a = (alu_src_a == 2'b01) ? 32'b0      :
-                   (alu_src_a == 2'b10) ? pc_current  :
-                                          rd1;
+    ProgramCounter pc_inst (
+        .clk   (clk),
+        .rst   (rst),
+        .pc_in (pc_next),
+        .pc    (pc_current)
+    );
 
-    // ALU Source B Mux
+    // =========================================================================
+    // Glue logic - multiplexers
+    // =========================================================================
+
+    // --- ALU src_a mux -------------------------------------------------------
+    //   2'b00 : rd1        - normal instructions
+    //   2'b01 : 32'b0      - LUI
+    //   2'b10 : pc_current - AUIPC
+    assign src_a = (alu_src_a == 2'b01) ? 32'b0
+                 : (alu_src_a == 2'b10) ? pc_current
+                 :                        rd1;
+
+    // --- ALU src_b mux -------------------------------------------------------
+    //   1 : sign-extended immediate
+    //   0 : rd2
     assign src_b = (alu_src_b) ? ext_imm : rd2;
 
-    // pc_plus4 is the sequential next address - used as the return address for JAL
-    assign pc_plus4 = pc_current + 4;
+    // --- Write-back mux ------------------------------------------------------
+    //   mem_to_reg = 1 : load data from memory
+    //   link_reg   = 1 : write PC + 4 (JAL / JALR)
+    //   otherwise  : write ALU result
+    assign write_data = (mem_to_reg) ? mem_read_data
+                     : (link_reg)   ? (pc_current + 4)
+                     :                alu_result;
 
-    // Result/Write-back Mux (2-way + JAL link)
-    // JALR link writeback to be implemented here
-    assign write_data = (mem_to_reg)     ? mem_read_data :
-                        (pcs == 2'b10)   ? pc_plus4      :
-                                           alu_result;
+    // --- Next-PC mux ---------------------------------------------------------
+    //   00 : sequential => PC + 4
+    //   01 : branch / JAL => PC + immediate
+    //   11 : JALR => ALU result (rs1 + imm), with bit 0 cleared per RISC-V spec
+    assign pc_next = (pc_src == 2'b00) ? (pc_current + 4)
+                   : (pc_src == 2'b01) ? (pc_current + ext_imm)
+                   : (pc_src == 2'b11) ? (alu_result & 32'hFFFFFFFE)
+                   :                     (pc_current + 4);
 
-    // PC Next Mux (2-way)
-    // JALR target (pc_src==2'b11) To be Implemented
-    assign pc_next = (pc_src == 2'b01) ? (pc_current + ext_imm) : // branch / jal
-                                         (pc_current + 4);         // normal fetch
-
-    // Final Output Connections
-    assign PC = pc_current;
+    // =========================================================================
+    // Output connections
+    // =========================================================================
+    assign PC             = pc_current;
     assign mem_write_data = rd2;
-    assign mem_read = mem_to_reg;
-    
+    assign mem_read       = mem_to_reg;
 
 endmodule

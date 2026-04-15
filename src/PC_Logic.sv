@@ -30,33 +30,43 @@
 ----------------------------------------------------------------------------------
 */
 
-module PC_Logic( // This is a combinational module, unlike ARM. See the note below.
-	input [1:0] PCS,	// 00 for non-control, 01 for conditional branch, 10 for jal, 11 for jalr
-	input [2:0] funct3,	// condition specified in the instruction (eq / ne / lt / ge / ltu / geu)
-	input [2:0] alu_flags, 	// {eq, lt, ltu}
-	//PC_src widened from 1 bit to 2 bits to support jalr
-	output reg [1:0] PC_src	// 2-bit: 00=PC+4, 01=PC+imm (branch/jal), 11=rs1+imm (jalr)
-    );
-    
-	always @(*) begin
-		case (PCS)
-			2'b00: PC_src <= 2'b00;
-			2'b01: // branch
-				case (funct3)
-					3'b000: PC_src      <= { 1'b0, alu_flags[2] };
-					3'b001: PC_src      <= { 1'b0, ~alu_flags[2] };
-					3'b100: PC_src      <= { 1'b0, alu_flags[1] };
-					3'b101: PC_src      <= { 1'b0, ~alu_flags[1] };
-					3'b110: PC_src      <= { 1'b0, alu_flags[0] };
-					3'b111: PC_src      <= { 1'b0, ~alu_flags[0] };
-					default: PC_src      <= 2'b0;
-				endcase
-			2'b10: PC_src      <= 2'b01;
-			2'b11: PC_src      <= 2'b11;
-			default: PC_src    <= 2'b00;
-		endcase
-	end
-	
-	
+module PC_Logic(
+    input [1:0] PCS,        // 00 = normal, 01 = branch, 10 = JAL, 11 = JALR
+    input [2:0] funct3,     // branch condition field
+    input [2:0] alu_flags,  // {eq, lt, ltu}
+    output reg [1:0] PC_src // 00 = PC+4, 01 = PC+imm, 11 = ALU result (JALR)
+);
+
+    /*
+        Important Note:
+        In RISC-V, the flags are produced and consumed in the same branch instruction.
+        This module only decides which PC source to use next.
+    */
+
+    always @(*) begin
+        case (PCS)
+            2'b00: PC_src = 2'b00; // normal instruction => PC + 4
+
+            2'b01: begin // conditional branch
+                case (funct3)
+                    3'b000: PC_src = ( alu_flags[2]) ? 2'b01 : 2'b00; // BEQ
+                    3'b001: PC_src = (~alu_flags[2]) ? 2'b01 : 2'b00; // BNE
+                    3'b100: PC_src = ( alu_flags[1]) ? 2'b01 : 2'b00; // BLT
+                    3'b101: PC_src = (~alu_flags[1]) ? 2'b01 : 2'b00; // BGE
+                    3'b110: PC_src = ( alu_flags[0]) ? 2'b01 : 2'b00; // BLTU
+                    3'b111: PC_src = (~alu_flags[0]) ? 2'b01 : 2'b00; // BGEU
+                    default: PC_src = 2'b00;
+                endcase
+            end
+
+            2'b10: PC_src = 2'b01; // JAL => PC + immediate
+            2'b11: PC_src = 2'b11; // JALR => ALU result
+
+            default: PC_src = 2'b00;
+        endcase
+    end
+
 endmodule
+
+
 
