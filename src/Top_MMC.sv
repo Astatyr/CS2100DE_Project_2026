@@ -2,22 +2,23 @@
 //////////////////////////////////////////////////////////////////////////////////
 // Company: National University of Singapore
 // Engineer: Neil Banerjee
-// 
+//
 // Create Date: 02.04.2025 17:57:12
 // Design Name: RISCV-MMC
 // Module Name: Top_MMC
 // Project Name: CS2100DE Labs
 // Target Devices: Nexys 4/Nexys 4 DDR
 // Tool Versions: Vivado 2023.2
-// Description: The Top module for the CPU design. Encapsulates the memories and MMIO components. 
-// 
-// Dependencies: Nil
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
+// Description: The Top module for the CPU design. Encapsulates the memories
+// and MMIO components.
+//
+// Additional notes:
+// - Added timer MMIO register so the CPU can read an always-increasing value.
+//   This is useful for timing/game logic.
+// - Added LFSR MMIO register to provide pseudo-random values.
+//   This is useful for game variation such as random delays or positions.
 //////////////////////////////////////////////////////////////////////////////////
+
 module Top_MMC(
     input clk,
     input btnCpuReset,
@@ -51,7 +52,7 @@ module Top_MMC(
     logic [31:0] mem_addr;
     logic [31:0] mem_write_data;
 
-logic [31:0] seven_seg_data;
+    logic [31:0] seven_seg_data;
     logic [3:0] counter;
 
     // Timer = free-running counter readable by software
@@ -61,14 +62,14 @@ logic [31:0] seven_seg_data;
     logic [15:0] lfsr;
 
     // ONLY FOR SIMULATION - COMMENT OUT FOR HARDWARE IMPLEMENTATION!!!
-    assign clk_cpu = clk;
+    //assign clk_cpu = clk;
 
     // ONLY FOR HARDWARE IMPLEMENTATION - COMMENT OUT FOR SIMULATION!!!
-    //assign clk_cpu = counter[3];
+    assign clk_cpu = counter[3];
 
-    //always @(posedge clk) begin
-    //    counter <= counter + 1;
-    //end
+    always @(posedge clk) begin
+        counter <= counter + 1;
+    end
 
     // Timer increments every CPU clock.
     // Purpose: software can read this as a changing value for timing or delays.
@@ -125,7 +126,7 @@ logic [31:0] seven_seg_data;
             mem_read_data <= 32'hDDEEAADD;
         end
     end
-
+    
     // Writing data words to the data memory or MMIO. Memory writing is sequential.
     always @(posedge clk_cpu) begin
         if (mem_we) begin
@@ -141,7 +142,6 @@ logic [31:0] seven_seg_data;
         end
     end
 
-    // Similar architecture to the one designed in Lab 2/3
     SevenSegDecoder ss_decoder (
         .clk(clk_cpu),
         .data(seven_seg_data),
@@ -149,7 +149,6 @@ logic [31:0] seven_seg_data;
         .an(an)
     );
 
-    // Our CPU
     RISCV_MMC cpu (
         .clk(clk_cpu),
         .rst(!btnCpuReset),
@@ -163,3 +162,4 @@ logic [31:0] seven_seg_data;
     );
 
 endmodule
+

@@ -1,0 +1,62 @@
+# Register assignments:
+# x1  = loop/temp
+# x2  = reaction timer counter  
+# x3  = score (best time)
+# x5  = MMIO base scratch
+# x10 = LED address    (0x2400)
+# x11 = BTN address    (0x2408)
+# x12 = SS address     (0x2418)
+# x13 = SW address     (0x2404)
+
+# --- Init ---
+    lui  x10, 0x2        # x10 = 0x2000 (close enough - adjust offset)
+    addi x10, x0, 0      # better: hardcode via lui+addi
+
+    # Load addresses
+    lui  x10, 2          # 0x2000
+    addi x10, x10, 0x400 # LED   = 0x2400
+    addi x11, x10, 8     # BTN   = 0x2408 (note: 0x2404 is SW, 0x2408 is BTN)
+    addi x12, x10, 0x18  # SS    = 0x2418
+    addi x13, x10, 4     # SW    = 0x2404
+
+    addi x3, x0, 0       # score = 0
+
+# --- Main game loop ---
+GAME_START:
+    # Clear LEDs and display
+    sw   x0, 0(x10)
+    sw   x0, 0(x12)
+
+    # Random-ish delay using switch value as seed
+    lw   x1, 0(x13)      # read switches
+    addi x1, x1, 100     # minimum delay
+
+DELAY:
+    addi x1, x1, -1
+    bne  x1, x0, DELAY
+
+    # Light up a single LED (LED0 for simplicity, or vary it)
+    addi x1, x0, 1
+    sw   x1, 0(x10)      # turn on LED0
+
+    # Start reaction timer
+    addi x2, x0, 0
+
+WAIT_BTN:
+    addi x2, x2, 1       # increment timer
+    sw   x2, 0(x12)      # display timer on seven-seg
+    lw   x1, 0(x11)      # read buttons
+    beq  x1, x0, WAIT_BTN  # loop until button pressed
+
+    # Button pressed - save score, clear LED
+    sw   x0, 0(x10)
+    sw   x2, 0(x12)      # show final reaction time
+
+    # Pause so player can read score
+    addi x1, x0, 0
+SHOW_SCORE:
+    addi x1, x1, 1
+    addi x5, x0, 500     # adjust for clock speed
+    bne  x1, x5, SHOW_SCORE
+
+    jal  x0, GAME_START  # restart

@@ -1,25 +1,40 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
 // Company: National University of Singapore
 // Engineer: Neil Banerjee
-// 
-// Create Date: 22.02.2025 20:37:13
-// Design Name: RISCV-MMC
-// Module Name: Decoder 
-// Project Name: CS2100DE Labs
-// Target Devices: Nexys 4/Nexys 4 DDR
-// Tool Versions: Vivado 2023.2
-// Description: Instruction decoder and Control Unit for the RISC-V CPU we are building
-// 
-// Dependencies: Nil
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
+//
+// Module Name: Decoder
+// Project Name: CS2100DE Labs - RISCV-MMC
+// Description:
+//   Instruction decoder for the RISC-V CPU. Decodes the 32-bit instruction
+//   word and produces control signals for the datapath.
+//
+//   Supported instruction types:
+//     R-type  : ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND, MUL
+//     I-type  : ADDI, SLLI, SLTI, SLTIU, XORI, SRLI, SRAI, ORI, ANDI
+//     I-type  : Load (LW)
+//     I-type  : JALR
+//     S-type  : Store (SW)
+//     B-type  : Branch (BEQ, BNE, BLT, BGE, BLTU, BGEU)
+//     J-type  : JAL
+//     U-type  : LUI
+//     U-type  : AUIPC
+//
+// Control signal reference:
+//   reg_write   : 1 = write result back to register file
+//   alu_src_b   : 1 = ALU src_b is immediate, 0 = rs2
+//   alu_src_a   : 2'b00 = rs1, 2'b01 = 0 (for LUI), 2'b10 = PC (for AUIPC)
+//   mem_to_reg  : 1 = write-back data is from memory, 0 = from ALU / PC+4
+//   mem_write   : 1 = write to data memory
+//   imm_src     : selects immediate format in Extend module
+//                   3'b000 = I-type, 3'b001 = S-type, 3'b010 = B-type,
+//                   3'b011 = U-type, 3'b100 = J-type
+//   alu_control : selects ALU operation (see ALU module)
+//   PCS         : 2'b00 = PC+4, 2'b01 = branch, 2'b10 = JAL, 2'b11 = JALR
+//   link_reg    : 1 = write PC+4 to rd (used by JAL / JALR)
+////////////////////////////////////////////////////////////////////////////////
 
-`timescale 1ns / 1ps
 module Decoder(
     input  [31:0] instr,
     output reg [1:0] PCS,
@@ -41,7 +56,7 @@ module Decoder(
     assign funct3 = instr[14:12];
     assign funct7 = instr[31:25];
 
-    always @(instr) begin
+    always_comb begin
         // Default control signal values (NOP-like state)
         PCS         = 2'b00;
         mem_to_reg  = 1'b0;
@@ -187,3 +202,4 @@ module Decoder(
     end
 
 endmodule
+

@@ -473,9 +473,11 @@ tick_advance:
         lw      a4,0(a5)
 
         li      a5,127
-        bgt     a4,a5,.L41
-
-
+        ble     a4,a5,.L40_spawn   # if still in range, go spawn
+        sw      zero,0(a5)          # else reset g_note_idx to 0
+        j       .L41                # skip spawn this tick
+        
+.L40_spawn:
         la      a5,g_note_idx
         lw      a5,0(a5)
 
@@ -535,44 +537,24 @@ tick_advance:
         addi    sp,sp,32
         jr      ra
 run_game:
-        addi    sp,sp,-32
-        sw      ra,28(sp)
-        sw      s0,24(sp)
-        addi    s0,sp,32
-
-        sw      zero,-20(s0)
-
-        j       .L45
-
-
-.L46:
-        la      a4,g_lane
-
-        lw      a5,-20(s0)
-        slli    a5,a5,2
-        add     a5,a4,a5
+        addi    sp,sp,-48
+        sw      ra,44(sp)
+        sw      s0,40(sp)
+        lui     a5,%hi(g_lane)
+        addi    a5,a5,%lo(g_lane)
         sw      zero,0(a5)
-
-        lw      a5,-20(s0)
-        addi    a5,a5,1
-        sw      a5,-20(s0)
-
-
-.L45:
-        lw      a4,-20(s0)
-        li      a5,7
-        ble     a4,a5,.L46
-
-
-        la      a5,g_lives
-        li      a4,16
-        sw      a4,0(a5)
-
-
+        sw      zero,4(a5)
+        sw      zero,8(a5)
+        sw      zero,12(a5)
+        sw      zero,16(a5)
+        sw      zero,20(a5)
+        sw      zero,24(a5)
+        sw      zero,28(a5)
+        la      s0,g_lives
+        li      a5,16
+        sw      a5,0(s0)
         la      a5,g_score
         sw      zero,0(a5)
-
-
         la      a5,g_note_idx
         sw      zero,0(a5)
         la      a5,g_mode
@@ -581,74 +563,77 @@ run_game:
         sw      a4,0(a5)
         call    update_leds
         call    make_seg_word
-        mv      a4,a0
         la      a5,g_seg
         lw      a5,0(a5)
-        sw      a4,0(a5)
-        j       .L47
-.L53:
-        sw      zero,-28(s0)
-        j       .L48
-.L52:
-        la      a5,g_btn
-        lw      a5,0(a5)
-        lw      a5,0(a5)
-        sw      a5,-24(s0)
-        lw      a5,-24(s0)
-        andi    a5,a5,16
-        beq     a5,zero,.L49
+        sw      a0,0(a5)
+        lw      a5,0(s0)
+        ble     a5,zero,.L51
+        sw      s1,36(sp)
+        sw      s2,32(sp)
+        sw      s3,28(sp)
+        sw      s4,24(sp)
+        li      s1,126976
+        addi    s1,s1,-1977
+        lui     s0,%hi(g_lane)
+        addi    s0,s0,%lo(g_lane)
+.L57:
+        sw      zero,12(sp)
+        lw      a5,12(sp)
+        bgt     a5,s1,.L52
+        j       .L56
+.L61:
         li      a0,16
         call    btn_wait_release
-        li      a5,-1
-        j       .L50
-.L49:
-        lui     a5,%hi(g_lane)    # KEEP — lui+addi+%hi/%lo is valid in RARS
-        addi    a5,a5,%lo(g_lane)
-        lw      a5,24(a5)
-        beq     a5,zero,.L51
-        lui     a5,%hi(g_lane)    # KEEP
-        addi    a5,a5,%lo(g_lane)
-        lw      a5,24(a5)
-        lw      a1,-24(s0)
-        mv      a0,a5
+        li      a0,-1
+        lw      s1,36(sp)
+        lw      s2,32(sp)
+        lw      s3,28(sp)
+        lw      s4,24(sp)
+.L50:
+        lw      ra,44(sp)
+        lw      s0,40(sp)
+        addi    sp,sp,48
+        jr      ra
+.L58:
+        lw      a5,12(sp)
+        addi    a5,a5,1
+        sw      a5,12(sp)
+        lw      a5,12(sp)
+        bgt     a5,s1,.L52
+.L56:
+        la      a5,g_btn
+        lw      a5,0(a5)
+        lw      a1,0(a5)
+        andi    a5,a1,16
+        bne     a5,zero,.L61
+        lw      a0,24(s0)
+        beq     a0,zero,.L58
         call    is_hit
-        mv      a5,a0
-        beq     a5,zero,.L51
+        beq     a0,zero,.L58
         la      a5,g_score
         lw      a5,0(a5)
-        addi    a4,a5,1
-        la      a5,g_score
-        sw      a4,0(a5)
-        lui     a5,%hi(g_lane)    # KEEP
-        addi    a5,a5,%lo(g_lane)
-        sw      zero,24(a5)
+        addi    a5,a5,1
+        la      a4,g_score
+        sw      a5,0(a4)
+        sw      zero,24(s0)
         call    make_seg_word
-        mv      a4,a0
         la      a5,g_seg
         lw      a5,0(a5)
-        sw      a4,0(a5)
-.L51:
-        lw      a5,-28(s0)
-        addi    a5,a5,1
-        sw      a5,-28(s0)
-.L48:
-        lw      a4,-28(s0)
-        li      a5,999424
-        addi    a5,a5,575
-        ble     a4,a5,.L52
+        sw      a0,0(a5)
+        j       .L58
+.L52:
         call    tick_advance
-.L47:
         la      a5,g_lives
         lw      a5,0(a5)
-        bgt     a5,zero,.L53
+        bgt     a5,zero,.L57
+        lw      s1,36(sp)
+        lw      s2,32(sp)
+        lw      s3,28(sp)
+        lw      s4,24(sp)
+.L51:
         la      a5,g_score
-        lw      a5,0(a5)
-.L50:
-        mv      a0,a5
-        lw      ra,28(sp)
-        lw      s0,24(sp)
-        addi    sp,sp,32
-        jr      ra
+        lw      a0,0(a5)
+        j       .L50
 show_game_over:
         addi    sp,sp,-32
         sw      ra,28(sp)
@@ -666,8 +651,8 @@ show_game_over:
         li      a4,-2004316160
         addi    a4,a4,-1912
         sw      a4,0(a5)
-        li      a5,1998848
-        addi    a0,a5,1152
+        li      a0,249856
+        addi    a0,a0,144
         call    delay
         la      a5,g_seg
         lw      a5,0(a5)

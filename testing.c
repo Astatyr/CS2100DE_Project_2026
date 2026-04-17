@@ -75,7 +75,7 @@
 #define LANE_SIZE    8      // AN0 (index 0) to AN7 (index 7)
 #define LINE_IDX     6      // lane index of the line (AN6, 2nd from left)
 #define MISS_IDX     7      // lane index of the miss zone (AN7, leftmost)
-#define TICK_DELAY   1000000  // poll iterations per tick; tune for hw vs sim
+#define TICK_DELAY   125000  // poll iterations per tick; tune for hw vs sim
 
 // ── Lookup: note encoding → SEG nibble ────────────────────────────────────────
 // note_to_seg[0]=SEG_BLANK, [1]=SEG_LEFT, [2]=SEG_RIGHT, [3]=SEG_TOP, [4]=SEG_BOT

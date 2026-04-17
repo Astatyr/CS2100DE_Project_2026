@@ -1,24 +1,29 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
 // Company: National University of Singapore
 // Engineer: Neil Banerjee
-// 
+//
 // Create Date: 22.02.2025 21:29:09
 // Design Name: RISCV-MMC
 // Module Name: RISCV_MMC
 // Project Name: CS2100DE Labs
-// Target Devices: Nexys 4/Nexys 4 DDR
+// Target Devices: Nexys 4 / Nexys 4 DDR
 // Tool Versions: Vivado 2023.2
-// Description: The main RISC-V CPU 
-// 
-// Dependencies: Nil
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
-
+//
+// Description:
+//   Top-level CPU datapath for the RISC-V MMC processor.
+//   Instantiates and connects all sub-modules:
+//     Extend, Decoder, ALU, RegFile, PC_Logic, ProgramCounter
+//
+// Revision history:
+//   0.01 - File Created
+//   0.02 - Added LUI / AUIPC support
+//   0.03 - Added JALR support and corrected JAL write-back:
+//            - PC_src widened to 2 bits
+//            - write-back mux now supports PC+4 for JAL / JALR
+//            - next-PC mux now supports JALR target from ALU result
+////////////////////////////////////////////////////////////////////////////////
 
 module RISCV_MMC(
     input         clk,
@@ -168,3 +173,4 @@ module RISCV_MMC(
     assign mem_read       = mem_to_reg;
 
 endmodule
+
